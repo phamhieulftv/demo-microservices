@@ -1,0 +1,86 @@
+version: '2'
+services:
+    ##
+    # Autodiscovery : Consul
+    ##
+    autodiscovery:
+        build: ./autodiscovery/
+        mem_limit: 128m
+        expose:
+            - 53
+            - 8300
+            - 8301
+            - 8302
+            - 8400
+            - 8500
+        ports:
+            - 8500:8500
+        dns:
+            - 127.0.0.1
+
+    ##
+    # Battle Microservice
+    ##
+    microservice_battle_fpm:
+        build: ./microservices/battle/php-fpm/
+        volumes_from:
+            - source_battle
+        links:
+            - autodiscovery
+        expose:
+            - 9000
+        environment:
+            - BACKEND=microservice-battle-nginx
+            - CONSUL=autodiscovery
+
+    microservice_battle_nginx:
+        build: ./microservices/battle/nginx/
+        volumes_from:
+            - source_battle
+        links:
+            - autodiscovery
+            - microservice_battle_fpm
+        environment:
+            - BACKEND=microservice-battle-fpm
+            - CONSUL=autodiscovery
+        ports:
+            - 8081:80
+            - 9091:9090
+
+    microservice_reactjs_node:
+        build: ./src/reactjs/
+        volumes_from:
+            - source_reactjs
+        links:
+            - autodiscovery
+        expose:
+            - 9000
+        environment:
+            - BACKEND=microservice-reactjs-nginx
+            - CONSUL=autodiscovery
+    microservice_reactjs_nginx:
+        build: ./microservices/reactjs/nginx/
+        volumes_from:
+            - source_reactjs
+        links:
+            - autodiscovery
+            - microservice_reactjs_node
+        environment:
+            - BACKEND=microservice-reactjs-node
+            - CONSUL=autodiscovery
+        ports:
+            - 8082:80
+            - 9092:9090
+    ##
+    # Source containers
+    ##
+    source_battle:
+        image: nginx:stable
+        volumes:
+            - ./src/battle:/var/www/html
+        command: "true"
+    source_reactjs:
+        image: nginx:stable
+        volumes:
+            - ./src/reactjs:/var/www/html
+        command: "true"
